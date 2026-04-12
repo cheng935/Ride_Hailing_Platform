@@ -4,8 +4,10 @@ package org.example.Ride_Hailing_Platform.service.impl;
 import org.example.Ride_Hailing_Platform.model.order.Order;
 import org.example.Ride_Hailing_Platform.model.order.OrderStatus;
 import org.example.Ride_Hailing_Platform.model.trip.*;
+import org.example.Ride_Hailing_Platform.model.user.Driver;
 import org.example.Ride_Hailing_Platform.model.user.User;
 import org.example.Ride_Hailing_Platform.model.user.UserRole;
+import org.example.Ride_Hailing_Platform.repository.DriverRepository;
 import org.example.Ride_Hailing_Platform.repository.OrderRepository;
 import org.example.Ride_Hailing_Platform.repository.TripRepository;
 import org.example.Ride_Hailing_Platform.repository.UserRepository;
@@ -26,6 +28,7 @@ public class TripServiceImpl implements TripService {
     private final TripRepository tripRepository;
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
+    private final DriverRepository driverRepository;
 
     @Override
     public Trip createTripFromOrder(Long orderId) {
@@ -60,27 +63,57 @@ public class TripServiceImpl implements TripService {
 
     @Override
     public Trip startTrip(Long tripId, Long driverId) {
+        // 1. 校验行程存在
         Trip trip = tripRepository.findById(tripId)
-                .orElseThrow(() -> new IllegalArgumentException("行程不存在"));
+                .orElseThrow(() -> new IllegalArgumentException("行程不存在（tripId: " + tripId + "）"));
 
-        User driver = userRepository.findById(driverId)
-                .orElseThrow(() -> new IllegalArgumentException("司机不存在"));
-
-        if (!UserRole.DRIVER.equals(driver.getRole())) {
-            throw new IllegalArgumentException("只有司机可以开始行程");
+        // 【新增防护1】校验行程关联的订单存在
+        Order order = trip.getOrder();
+        if (order == null) {
+            throw new IllegalArgumentException("行程未关联任何订单（tripId: " + tripId + "）");
         }
 
-        // 验证司机是否是该订单的司机
-        if (!trip.getOrder().getDriver().getUserId().equals(driverId)) {
-            throw new IllegalArgumentException("无权操作此行程");
+        // 【新增防护2】校验订单已绑定司机
+        Driver orderDriver = order.getDriver();
+        if (orderDriver == null) {
+            throw new IllegalArgumentException("订单未绑定司机，无法开始行程（orderId: " + order.getOrderId() + "）");
         }
 
+        // 2. 校验司机存在（Driver表）
+        Driver driverEntity = driverRepository.findById(driverId)
+                .orElseThrow(() -> new IllegalArgumentException("司机不存在（driverId: " + driverId + "）"));
+        User driverUser = driverEntity.getUser();
+        if (driverUser == null) {
+            throw new IllegalArgumentException("司机未关联用户账号（driverId: " + driverId + "）");
+        }
+
+        // 3. 校验该User是司机角色
+        if (!UserRole.DRIVER.equals(driverUser.getRole())) {
+            throw new IllegalArgumentException("只有司机可以开始行程（userId: " + driverUser.getUserId() + "）");
+        }
+
+        // 4. 校验订单的司机是当前操作的司机（用Driver的driverId对比，更直接）
+        if (!orderDriver.getDriverId().equals(driverId)) {
+            throw new IllegalArgumentException("无权操作此行程：当前司机（driverId: " + driverId + "）不是订单绑定的司机（driverId: " + orderDriver.getDriverId() + "）");
+        }
+
+        // 5. 校验行程状态
         if (!TripStatus.NOT_STARTED.equals(trip.getStatus())) {
-            throw new IllegalStateException("行程状态不允许开始");
+            throw new IllegalStateException("行程状态不允许开始（当前状态：" + trip.getStatus() + "）");
         }
 
+        // 6. 校验司机在线
+        if (!driverEntity.getIsOnline()) {
+            throw new IllegalStateException("司机未上线，无法开始行程（driverId: " + driverId + "）");
+        }
+
+        // 7. 更新行程状态
         trip.startTrip();
         trip.setCurrentLocation(trip.getPickupLocation());
+
+        // 8. 【可选】同步更新订单状态为IN_PROGRESS（业务闭环）
+        order.setStatus(OrderStatus.IN_PROGRESS);
+        orderRepository.save(order);
 
         return tripRepository.save(trip);
     }
@@ -101,20 +134,21 @@ public class TripServiceImpl implements TripService {
     }
 
     @Override
-    public Trip completeTrip(Long tripId, Long driverId, Double actualDistance, Double actualFare,
-                             Integer rating, String feedback) {
+    public Trip completeTrip(Long tripId, Long driverId, Double actualDistance, Double actualFare, Integer rating, String feedback) {
         Trip trip = tripRepository.findById(tripId)
                 .orElseThrow(() -> new IllegalArgumentException("行程不存在"));
 
-        User driver = userRepository.findById(driverId)
+        Driver driverEntity = driverRepository.findById(driverId)
                 .orElseThrow(() -> new IllegalArgumentException("司机不存在"));
+        User driver = driverEntity.getUser();
 
         if (!UserRole.DRIVER.equals(driver.getRole())) {
             throw new IllegalArgumentException("只有司机可以完成行程");
         }
 
         // 验证司机是否是该订单的司机
-        if (!trip.getOrder().getDriver().getUserId().equals(driverId)) {
+        if (!trip.getOrder().getDriver().getDriverId()
+                .equals(driverId)) {
             throw new IllegalArgumentException("无权操作此行程");
         }
 

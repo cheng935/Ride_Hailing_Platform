@@ -22,7 +22,9 @@ public class PassengerController {
     public ResponseEntity<Order> requestRide(
             @PathVariable Long passengerId,
             @RequestParam String startAddress,
-            @RequestParam String endAddress) {
+            @RequestParam String endAddress,
+            @RequestParam Boolean isCongestion
+            ) {
 
         User user = userService.findUserById(passengerId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
@@ -30,7 +32,7 @@ public class PassengerController {
         Passenger passenger = new Passenger();
         passenger.setUser(user);
 
-        Order order = orderService.requestRide(passenger, startAddress, endAddress);
+        Order order = orderService.requestRide(passenger, startAddress, endAddress, isCongestion);
         return ResponseEntity.ok(order);
     }
 

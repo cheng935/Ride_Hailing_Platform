@@ -1,6 +1,7 @@
 // src/main/java/org/example/Ride_Hailing_Platform/model/order/Order.java
 package org.example.Ride_Hailing_Platform.model.order;
 
+import org.example.Ride_Hailing_Platform.model.user.Driver;
 import org.example.Ride_Hailing_Platform.model.user.User;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -22,12 +23,15 @@ public class Order {
 
     @ManyToOne
     @JoinColumn(name = "driver_id")
-    private User driver;
+    private Driver driver;
 
     private String pickupLocation;
     private String destination;
     private Double distance; // 公里
     private Double estimatedFare; // 预估费用
+
+    //额外价格算法用值(目前只判断高峰期)
+    private Boolean isCongestion;
 
     @Enumerated(EnumType.STRING)
     private OrderStatus status = OrderStatus.PENDING;

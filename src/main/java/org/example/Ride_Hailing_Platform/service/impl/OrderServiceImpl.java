@@ -2,9 +2,11 @@
 package org.example.Ride_Hailing_Platform.service.impl;
 
 import org.example.Ride_Hailing_Platform.model.order.*;
+import org.example.Ride_Hailing_Platform.model.user.Driver;
 import org.example.Ride_Hailing_Platform.model.user.Passenger;
 import org.example.Ride_Hailing_Platform.model.user.User;
 import org.example.Ride_Hailing_Platform.model.user.UserRole;
+import org.example.Ride_Hailing_Platform.repository.DriverRepository;
 import org.example.Ride_Hailing_Platform.repository.OrderRepository;
 import org.example.Ride_Hailing_Platform.repository.TripRepository;
 import org.example.Ride_Hailing_Platform.repository.UserRepository;
@@ -24,9 +26,10 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
     private final TripRepository tripRepository;
+    private final DriverRepository driverRepository;
 
     @Override
-    public Order createOrder(Long passengerId, String pickupLocation, String destination, OrderType type) {
+    public Order createOrder(Long passengerId, String pickupLocation, String destination, OrderType type, Boolean isCongestion) {
         User passenger = userRepository.findById(passengerId)
                 .orElseThrow(() -> new IllegalArgumentException("乘客不存在"));
 
@@ -50,11 +53,12 @@ public class OrderServiceImpl implements OrderService {
         order.setDestination(destination);
         order.setType(type);
         order.setStatus(OrderStatus.PENDING);
+        order.setIsCongestion(isCongestion);//是否高峰期
 
         // 简单的预估费用计算（实际应使用地图API）
         double distance = calculateDistance(pickupLocation, destination);
         order.setDistance(distance);
-        order.setEstimatedFare(calculateEstimatedFare(distance, type));
+        order.setEstimatedFare(calculateEstimatedFare(distance, type, isCongestion));
 
         return orderRepository.save(order);
     }
@@ -72,10 +76,12 @@ public class OrderServiceImpl implements OrderService {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("订单不存在"));
 
-        User driver = userRepository.findById(driverId)
-                .orElseThrow(() -> new IllegalArgumentException("司机不存在"));
+        Driver driver = driverRepository.findByUserUserId(driverId);
+        if (driver == null) {
+            throw new IllegalArgumentException("司机不存在");
+        }
 
-        if (!UserRole.DRIVER.equals(driver.getRole())) {
+        if (!UserRole.DRIVER.equals(driver.getUser().getRole())) {
             throw new IllegalArgumentException("只有司机可以接单");
         }
 
@@ -106,7 +112,7 @@ public class OrderServiceImpl implements OrderService {
 
         // 检查用户是否有权限取消此订单
         boolean isPassenger = order.getPassenger().getUserId().equals(userId);
-        boolean isDriver = order.getDriver() != null && order.getDriver().getUserId().equals(userId);
+        boolean isDriver = order.getDriver() != null && order.getDriver().getDriverId().equals(userId);
 
         if (!isPassenger && !isDriver) {
             throw new IllegalArgumentException("无权取消此订单");
@@ -141,9 +147,17 @@ public class OrderServiceImpl implements OrderService {
         );
 
         if (isPassenger) {
+            // 乘客：不变，因为 passenger 是 User 类型
             return orderRepository.findByPassengerAndStatusIn(user, activeStatuses);
         } else {
-            return orderRepository.findByDriverAndStatusIn(user, activeStatuses);
+            // ==================== 司机：修正逻辑 ====================
+            // 1. 通过 userId 查询 Driver 实体
+            Driver driver = driverRepository.findByUserUserId(userId);
+            if (driver == null) {
+                throw new IllegalArgumentException("司机不存在");
+            }
+            // 2. 用 Driver 查询订单（规范写法）
+            return orderRepository.findByDriverAndStatusIn(driver, activeStatuses);
         }
     }
 
@@ -159,20 +173,26 @@ public class OrderServiceImpl implements OrderService {
         );
 
         if (isPassenger) {
+            // 乘客：不变
             return orderRepository.findByPassengerAndStatusIn(user, historyStatuses);
         } else {
-            return orderRepository.findByDriverAndStatusIn(user, historyStatuses);
+            // ==================== 司机：修正逻辑 ====================
+            Driver driver = driverRepository.findByUserUserId(userId);
+            if (driver == null) {
+                throw new IllegalArgumentException("司机不存在");
+            }
+            return orderRepository.findByDriverAndStatusIn(driver, historyStatuses);
         }
     }
 
     @Override
-    public Order requestRide(Passenger passenger, String pickupLocation, String destination) {
+    public Order requestRide(Passenger passenger, String pickupLocation, String destination, Boolean isCongestion) {
         if (passenger == null || passenger.getUser() == null) {
             throw new IllegalArgumentException("乘客信息不能为空");
         }
 
         Long passengerId = passenger.getUser().getUserId();
-        return createOrder(passengerId, pickupLocation, destination, OrderType.STANDARD);
+        return createOrder(passengerId, pickupLocation, destination, OrderType.STANDARD, isCongestion);
     }
 
 
@@ -182,13 +202,18 @@ public class OrderServiceImpl implements OrderService {
         return Math.abs(pickup.hashCode() - destination.hashCode()) % 100 / 10.0;
     }
 
-    private double calculateEstimatedFare(double distance, OrderType type) {
+    public Double calculateEstimatedFare(double distance, OrderType type, Boolean isCongestion) {
         double baseFare = 10.0; // 起步价
         double perKmRate = switch (type) {
             case STANDARD -> 2.0;
             case PREMIUM -> 3.5;
             case EXPRESS -> 2.5;
         };
+
+        //高峰期涨价0.2倍
+        if (isCongestion){
+            return (baseFare + (distance * perKmRate)) * 1.2;
+        }
 
         return baseFare + (distance * perKmRate);
     }

@@ -22,9 +22,11 @@ public class OrderController {
             @RequestParam Long passengerId,
             @RequestParam String pickupLocation,
             @RequestParam String destination,
-            @RequestParam OrderType type) {
+            @RequestParam OrderType type,
+            @RequestParam Boolean isCongestion
+            ) {
         try {
-            Order order = orderService.createOrder(passengerId, pickupLocation, destination, type);
+            Order order = orderService.createOrder(passengerId, pickupLocation, destination, type, isCongestion);
             return ResponseEntity.ok(order);
         } catch (IllegalArgumentException | IllegalStateException e) {
             return ResponseEntity.badRequest().body(null);

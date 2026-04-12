@@ -20,7 +20,7 @@ public class Driver {
     @Column(unique = true, nullable = false)
     private String licenseNumber;
 
-    private Boolean isAvailable = true;
+    private Boolean isOnline = false;
 
     private String vehicleType;
 

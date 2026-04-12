@@ -29,7 +29,7 @@ public interface OrderService {
      * @return 创建的订单
      * @throws IllegalArgumentException 如果乘客不存在或参数无效
      */
-    Order createOrder(Long passengerId, String pickupLocation, String destination, OrderType type);
+    Order createOrder(Long passengerId, String pickupLocation, String destination, OrderType type, Boolean isCongestion);
 
     /**
      * 司机接单
@@ -77,10 +77,19 @@ public interface OrderService {
      * @param passenger 乘客对象
      * @param pickupLocation 起点地址
      * @param destination 终点地址
+     * @param isCongestion 是否高峰期
      * @return 创建的订单
      * @throws IllegalArgumentException 如果参数无效
      */
 
-    Order requestRide(Passenger passenger, String pickupLocation, String destination);
+    Order requestRide(Passenger passenger, String pickupLocation, String destination, Boolean isCongestion);
 
+    /**
+     * 计算预计价钱
+     * @param distance      行程
+     * @param type          乘车类型(三种枚举)
+     * @param isCongestion  是否高峰期(价格 * 1.2)
+     * @return 预估价格: boolean
+     */
+    Double calculateEstimatedFare(double distance, OrderType type, Boolean isCongestion);
 }

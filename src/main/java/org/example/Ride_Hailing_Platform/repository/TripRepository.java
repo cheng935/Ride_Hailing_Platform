@@ -19,13 +19,13 @@ public interface TripRepository extends JpaRepository<Trip, Long> {
 
     List<Trip> findByOrderDriverAndStatus(User driver, TripStatus status);
 
-    // ✅ 新增：查询多个状态的乘客行程
+    //查询多个状态的乘客行程
     List<Trip> findByOrderPassengerAndStatusIn(
             User passenger,
             List<TripStatus> statusList
     );
 
-    // ✅ 新增：查询多个状态的司机行程
+    //查询多个状态的司机行程
     List<Trip> findByOrderDriverAndStatusIn(
             User driver,
             List<TripStatus> statusList
@@ -34,7 +34,7 @@ public interface TripRepository extends JpaRepository<Trip, Long> {
     @Query("SELECT t FROM Trip t WHERE t.order.passenger.userId = :userId ORDER BY t.createTime DESC")
     List<Trip> findRecentTripsByPassenger(@Param("userId") Long userId);
 
-    @Query("SELECT t FROM Trip t WHERE t.order.driver.userId = :userId ORDER BY t.createTime DESC")
+    @Query("SELECT t FROM Trip t WHERE t.order.driver.user.userId = :userId ORDER BY t.createTime DESC")
     List<Trip> findRecentTripsByDriverIn(@Param("userId") Long userId);
 
     long countByOrderDriverAndStatus(User driver, TripStatus status);

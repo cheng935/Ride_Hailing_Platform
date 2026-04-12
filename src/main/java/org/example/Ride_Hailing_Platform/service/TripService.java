@@ -50,8 +50,7 @@ public interface TripService {
      * @return 更新后的行程
      * @throws IllegalStateException 如果行程状态不允许完成
      */
-    Trip completeTrip(Long tripId, Long driverId, Double actualDistance, Double actualFare,
-                      Integer rating, String feedback);
+    Trip completeTrip(Long tripId, Long driverId, Double actualDistance, Double actualFare, Integer rating, String feedback);
 
     /**
      * 根据ID查找行程

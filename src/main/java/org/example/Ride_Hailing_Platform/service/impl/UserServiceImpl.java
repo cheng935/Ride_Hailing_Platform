@@ -1,8 +1,12 @@
 // src/main/java/org/example/Ride_Hailing_Platform/service/impl/UserServiceImpl.java
 package org.example.Ride_Hailing_Platform.service.impl;
 
+import org.example.Ride_Hailing_Platform.model.user.Driver;
+import org.example.Ride_Hailing_Platform.model.user.Passenger;
 import org.example.Ride_Hailing_Platform.model.user.User;
 import org.example.Ride_Hailing_Platform.model.user.UserRole;
+import org.example.Ride_Hailing_Platform.repository.DriverRepository;
+import org.example.Ride_Hailing_Platform.repository.PassengerRepository;
 import org.example.Ride_Hailing_Platform.repository.UserRepository;
 import org.example.Ride_Hailing_Platform.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +25,9 @@ import java.util.Optional;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
+    private final DriverRepository driverRepository;
+    private final PassengerRepository passengerRepository;
+
 
     @Override
     public User createUser(String name, String phone, String password, UserRole role) {
@@ -32,7 +39,24 @@ public class UserServiceImpl implements UserService {
         user.setPhone(phone);
         user.setPassword(password);  //生产环境应该加密
         user.setRole(role);
-        return userRepository.save(user);
+        User savedUser = userRepository.save(user);
+
+        if (role == UserRole.DRIVER) {
+            Driver driver = new Driver();
+            driver.setUser(savedUser);
+            driver.setIsOnline(false);
+            driver.setLicenseNumber("DEFAULT_LICENSE"); // 临时值，后面可改接口
+            driver.setVehicleType("DEFAULT_TYPE");
+            driver.setVehiclePlate("DEFAULT_PLATE");
+            driverRepository.save(driver);
+        } else if (role == UserRole.PASSENGER) {
+            Passenger passenger = new Passenger();
+            passenger.setUser(savedUser);
+            passenger.setEmergencyContact("紧急联系人默认");
+            passengerRepository.save(passenger);
+        }
+
+        return savedUser;
     }
     //登录
     @Override
