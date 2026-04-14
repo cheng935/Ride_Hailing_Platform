@@ -1,28 +1,18 @@
 package org.example.Ride_Hailing_Platform.model.user;
 
-import jakarta.persistence.*;
+import jakarta.persistence.*;//JPA,用于映射Java对象到数据库表
 import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "drivers")
+@DiscriminatorValue("DRIVER")
 @Getter
 @Setter
-public class Driver {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long driverId;
-
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+public class Driver extends User{
 
     @Column(unique = true, nullable = false)
     private String licenseNumber;
-
-    private Boolean isOnline = false;
-
+    private Boolean isOnline = false;//默认为离线
     private String vehicleType;
-
     private String vehiclePlate;
 }

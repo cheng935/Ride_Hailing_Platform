@@ -1,21 +1,17 @@
 package org.example.Ride_Hailing_Platform.model.user;
 
-import jakarta.persistence.*;
+import jakarta.persistence.DiscriminatorValue;
+import jakarta.persistence.Entity;
 import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "passengers")
+@DiscriminatorValue("PASSENGER")
 @Getter
 @Setter
-public class Passenger {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long passengerId;
-
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+public class Passenger extends User{
 
     private String emergencyContact;
+    private int rideCount = 0;//默认为0
+    //乘客独有字段待拓展
 }

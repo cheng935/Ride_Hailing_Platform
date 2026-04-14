@@ -24,7 +24,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @Query("SELECT o FROM Order o WHERE o.passenger.userId = :userId ORDER BY o.createTime DESC")
     List<Order> findRecentOrdersByPassenger(@Param("userId") Long userId);
 
-    @Query("SELECT o FROM Order o WHERE o.driver.driverId = :userId ORDER BY o.createTime DESC")
+    @Query("SELECT o FROM Order o WHERE o.driver.userId = :userId ORDER BY o.createTime DESC")
     List<Order> findRecentOrdersByDriver(@Param("userId") Long userId);
 
     boolean existsByPassengerAndStatusIn(User passenger, List<OrderStatus> statusList);

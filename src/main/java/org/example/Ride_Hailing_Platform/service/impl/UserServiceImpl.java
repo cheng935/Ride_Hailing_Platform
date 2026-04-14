@@ -43,7 +43,6 @@ public class UserServiceImpl implements UserService {
 
         if (role == UserRole.DRIVER) {
             Driver driver = new Driver();
-            driver.setUser(savedUser);
             driver.setIsOnline(false);
             driver.setLicenseNumber("DEFAULT_LICENSE"); // 临时值，后面可改接口
             driver.setVehicleType("DEFAULT_TYPE");
@@ -51,7 +50,6 @@ public class UserServiceImpl implements UserService {
             driverRepository.save(driver);
         } else if (role == UserRole.PASSENGER) {
             Passenger passenger = new Passenger();
-            passenger.setUser(savedUser);
             passenger.setEmergencyContact("紧急联系人默认");
             passengerRepository.save(passenger);
         }
