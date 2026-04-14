@@ -10,6 +10,7 @@ import org.example.Ride_Hailing_Platform.repository.PassengerRepository;
 import org.example.Ride_Hailing_Platform.repository.UserRepository;
 import org.example.Ride_Hailing_Platform.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.Optional;
@@ -27,6 +28,7 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final DriverRepository driverRepository;
     private final PassengerRepository passengerRepository;
+    private final PasswordEncoder passwordEncoder;
 
 
     @Override
@@ -34,39 +36,31 @@ public class UserServiceImpl implements UserService {
         if (userRepository.findByPhone(phone).isPresent()) {
             throw new IllegalArgumentException("手机号已存在");
         }
-        User user = new User();
-        user.setName(name);
-        user.setPhone(phone);
-        user.setPassword(password);  //生产环境应该加密
-        user.setRole(role);
-        User savedUser = userRepository.save(user);
-
-        if (role == UserRole.DRIVER) {
-            Driver driver = new Driver();
-            driver.setIsOnline(false);
-            driver.setLicenseNumber("DEFAULT_LICENSE"); // 临时值，后面可改接口
-            driver.setVehicleType("DEFAULT_TYPE");
-            driver.setVehiclePlate("DEFAULT_PLATE");
-            driverRepository.save(driver);
-        } else if (role == UserRole.PASSENGER) {
-            Passenger passenger = new Passenger();
-            passenger.setEmergencyContact("紧急联系人默认");
-            passengerRepository.save(passenger);
+        User user;
+        String encodedPassword = passwordEncoder.encode(password);
+        if (role == UserRole.PASSENGER) {
+            user = new Passenger(name, phone, encodedPassword);
+        } else if (role == UserRole.DRIVER) {
+            user = new Driver(name, phone, encodedPassword);
+        } else {
+            throw new RuntimeException("不支持的用户角色：" + role);
         }
-
-        return savedUser;
+        user.setRole(role);
+        return userRepository.save(user);
     }
-    //登录
+    
     @Override
     public User login(String phone, String password){
-        User user = userRepository.findByPhone(phone).orElseThrow(() -> new RuntimeException("用户不存在"));
+        User user = userRepository.findByPhone(phone)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
 
-        if (!password.equals(user.getPassword())){
+        if (!passwordEncoder.matches(password, user.getPassword())){
             throw new RuntimeException("密码错误");
         }
 
         return user;
     }
+    
     @Override
     public Optional<User> findUserByPhone(String phone) {
         return userRepository.findByPhone(phone);

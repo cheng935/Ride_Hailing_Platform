@@ -29,6 +29,7 @@ public class Order {
     private String destination;
     private Double distance; // 公里
     private Double estimatedFare; // 预估费用
+    private Double actualFare;
 
     //额外价格算法用值(目前只判断高峰期)
     private Boolean isCongestion;
@@ -39,8 +40,14 @@ public class Order {
     @Enumerated(EnumType.STRING)
     private OrderType type = OrderType.STANDARD;
 
+    //时间
     private LocalDateTime createTime = LocalDateTime.now();
     private LocalDateTime updateTime;
+    private LocalDateTime acceptTime;
+
+    //取消订单相关信息
+    private LocalDateTime cancelTime;
+    private String CancelReason;
 
     // 业务方法
     public boolean canBeCancelled() {

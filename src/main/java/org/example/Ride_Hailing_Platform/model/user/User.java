@@ -30,6 +30,19 @@ public class User {
 
     private Double rating = 5.0; //默认评分
 
+    // 核心：role字段只在父类定义一次，子类不再重复定义！
+    @Column(name = "role", insertable = false, updatable = false)
     @Enumerated(EnumType.STRING)
     private UserRole role; //PASSENGER, DRIVER
+
+    public User(String name, String phone, String password) {
+        this.name = name;
+        this.phone = phone;
+        this.password = password;
+    }
+
+    public User() {
+    }
 }
+
+

@@ -5,8 +5,8 @@ import org.example.Ride_Hailing_Platform.model.order.Order;
 import org.example.Ride_Hailing_Platform.model.order.OrderStatus;
 import org.example.Ride_Hailing_Platform.model.trip.*;
 import org.example.Ride_Hailing_Platform.model.user.Driver;
+import org.example.Ride_Hailing_Platform.model.user.Passenger;
 import org.example.Ride_Hailing_Platform.model.user.User;
-import org.example.Ride_Hailing_Platform.model.user.UserRole;
 import org.example.Ride_Hailing_Platform.repository.DriverRepository;
 import org.example.Ride_Hailing_Platform.repository.OrderRepository;
 import org.example.Ride_Hailing_Platform.repository.TripRepository;
@@ -18,7 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -49,14 +48,15 @@ public class TripServiceImpl implements TripService {
 
         // 设置位置信息
         trip.setPickupLocation(new Location(
-                39.9042, 116.4074, order.getPickupLocation() // 默认北京坐标，实际应获取真实坐标
+                null, null, order.getPickupLocation() // 实际由前端传真实坐标
         ));
 
         trip.setDestinationLocation(new Location(
-                39.9043, 116.4075, order.getDestination()
+                null, null, order.getDestination()
         ));
 
         trip.setStatus(TripStatus.NOT_STARTED);
+        trip.setCreateTime(LocalDateTime.now()); // 补充创建时间
 
         return tripRepository.save(trip);
     }
@@ -67,34 +67,26 @@ public class TripServiceImpl implements TripService {
         Trip trip = tripRepository.findById(tripId)
                 .orElseThrow(() -> new IllegalArgumentException("行程不存在（tripId: " + tripId + "）"));
 
-        // 【新增防护1】校验行程关联的订单存在
+        // 2. 校验订单关联
         Order order = trip.getOrder();
         if (order == null) {
             throw new IllegalArgumentException("行程未关联任何订单（tripId: " + tripId + "）");
         }
 
-        // 【新增防护2】校验订单已绑定司机
+        // 3. 单表继承核心修改：直接从UserRepository查Driver（无需查DriverRepository）
+        User driverUser = userRepository.findById(driverId)
+                .orElseThrow(() -> new IllegalArgumentException("司机不存在（userId: " + driverId + "）"));
+
+        // 校验是司机角色
+        if (!(driverUser instanceof Driver)) {//instanceof 是Java原生的类型判断段运算符，判断对象driverUser是不是Driver的实例
+            throw new IllegalArgumentException("只有司机可以开始行程（userId: " + driverId + "）");
+        }
+        Driver driver = (Driver)driverUser;
+
+        // 4. 校验订单的司机是当前操作的司机（单表继承：用userId对比，无driverId）
         Driver orderDriver = order.getDriver();
-        if (orderDriver == null) {
-            throw new IllegalArgumentException("订单未绑定司机，无法开始行程（orderId: " + order.getOrderId() + "）");
-        }
-
-        // 2. 校验司机存在（Driver表）
-        Driver driverEntity = driverRepository.findById(driverId)
-                .orElseThrow(() -> new IllegalArgumentException("司机不存在（driverId: " + driverId + "）"));
-        User driverUser = driverEntity.getUser();
-        if (driverUser == null) {
-            throw new IllegalArgumentException("司机未关联用户账号（driverId: " + driverId + "）");
-        }
-
-        // 3. 校验该User是司机角色
-        if (!UserRole.DRIVER.equals(driverUser.getRole())) {
-            throw new IllegalArgumentException("只有司机可以开始行程（userId: " + driverUser.getUserId() + "）");
-        }
-
-        // 4. 校验订单的司机是当前操作的司机（用Driver的driverId对比，更直接）
-        if (!orderDriver.getDriverId().equals(driverId)) {
-            throw new IllegalArgumentException("无权操作此行程：当前司机（driverId: " + driverId + "）不是订单绑定的司机（driverId: " + orderDriver.getDriverId() + "）");
+        if (!orderDriver.getUserId().equals(driverId)) {
+            throw new IllegalArgumentException("无权操作此行程：当前司机（driverId: " + driverId + "）不是订单绑定的司机（driverId: " + orderDriver.getUserId() + "）");
         }
 
         // 5. 校验行程状态
@@ -103,16 +95,18 @@ public class TripServiceImpl implements TripService {
         }
 
         // 6. 校验司机在线
-        if (!driverEntity.getIsOnline()) {
+        if (!driver.getIsOnline()) {
             throw new IllegalStateException("司机未上线，无法开始行程（driverId: " + driverId + "）");
         }
 
         // 7. 更新行程状态
         trip.startTrip();
         trip.setCurrentLocation(trip.getPickupLocation());
+        trip.setUpdateTime(LocalDateTime.now());
 
-        // 8. 【可选】同步更新订单状态为IN_PROGRESS（业务闭环）
+        // 8. 同步更新订单状态为IN_PROGRESS（业务闭环）
         order.setStatus(OrderStatus.IN_PROGRESS);
+        order.setUpdateTime(LocalDateTime.now());
         orderRepository.save(order);
 
         return tripRepository.save(trip);
@@ -127,9 +121,12 @@ public class TripServiceImpl implements TripService {
             throw new IllegalStateException("只有进行中的行程才能更新位置");
         }
 
-        trip.setCurrentLocation(location);
-        trip.setUpdateTime(LocalDateTime.now());
+        // 优化：位置非空校验
+        if (location == null || location.getAddress() == null || location.getAddress().isBlank()) {
+            throw new IllegalArgumentException("位置信息不能为空");
+        }
 
+        trip.setCurrentLocation(location);
         return tripRepository.save(trip);
     }
 
@@ -138,20 +135,20 @@ public class TripServiceImpl implements TripService {
         Trip trip = tripRepository.findById(tripId)
                 .orElseThrow(() -> new IllegalArgumentException("行程不存在"));
 
-        Driver driverEntity = driverRepository.findById(driverId)
+        User driverUser = userRepository.findById(driverId)
                 .orElseThrow(() -> new IllegalArgumentException("司机不存在"));
-        User driver = driverEntity.getUser();
-
-        if (!UserRole.DRIVER.equals(driver.getRole())) {
-            throw new IllegalArgumentException("只有司机可以完成行程");
+        if (!(driverUser instanceof Driver)) {
+            throw new IllegalArgumentException("该用户不是司机（userId: " + driverId + "）");
         }
+        Driver driver = (Driver) driverUser;
 
         // 验证司机是否是该订单的司机
-        if (!trip.getOrder().getDriver().getDriverId()
-                .equals(driverId)) {
+        Driver orderDriver = trip.getOrder().getDriver();
+        if (!orderDriver.getUserId().equals(driverId)) {
             throw new IllegalArgumentException("无权操作此行程");
         }
 
+        // 校验行程状态
         if (!TripStatus.IN_PROGRESS.equals(trip.getStatus())) {
             throw new IllegalStateException("只有进行中的行程才能完成");
         }
@@ -170,10 +167,12 @@ public class TripServiceImpl implements TripService {
         }
 
         trip.completeTrip(actualDistance, actualFare, rating, feedback);
+        trip.setUpdateTime(LocalDateTime.now());
 
         // 更新订单状态
         Order order = trip.getOrder();
         order.setStatus(OrderStatus.COMPLETED);
+        order.setActualFare(actualFare);// 补充订单实际费用
         order.setUpdateTime(LocalDateTime.now());
         orderRepository.save(order);
 
@@ -188,25 +187,35 @@ public class TripServiceImpl implements TripService {
     @Override
     public List<Trip> getActiveTrips(Long userId, boolean isPassenger) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
+                .orElseThrow(() -> new IllegalArgumentException("用户不存在（userId: " + userId + "）"));
 
         List<TripStatus> activeStatuses = List.of(TripStatus.NOT_STARTED, TripStatus.IN_PROGRESS);
 
         if (isPassenger) {
-            return tripRepository.findByOrderPassengerAndStatusIn(user, activeStatuses);
+            if (!(user instanceof Passenger)) {
+                throw new IllegalArgumentException("该用户不是乘客（userId: " + userId + "）");
+            }
+            Passenger passenger = (Passenger) user;
+            return tripRepository.findByOrderPassengerAndStatusIn(passenger, activeStatuses);
         } else {
-            return tripRepository.findByOrderDriverAndStatusIn(user, activeStatuses);
+            // 校验是司机
+            if (!(user instanceof Driver)) {
+                throw new IllegalArgumentException("该用户不是司机（userId: " + userId + "）");
+            }
+            Driver driver = (Driver) user;
+            return tripRepository.findByOrderDriverAndStatusIn(driver, activeStatuses);
         }
     }
 
     @Override
     public DriverTripStats getDriverTripStats(Long driverId) {
-        User driver = userRepository.findById(driverId)
-                .orElseThrow(() -> new IllegalArgumentException("司机不存在"));
+        User driverUser = userRepository.findById(driverId)
+                .orElseThrow(() -> new IllegalArgumentException("司机不存在（userId: " + driverId + "）"));
 
-        if (!UserRole.DRIVER.equals(driver.getRole())) {
-            throw new IllegalArgumentException("只有司机可以获取统计信息");
+        if (!(driverUser instanceof Driver)) {
+            throw new IllegalArgumentException("该用户不是司机（userId: " + driverId + "）");
         }
+        Driver driver = (Driver) driverUser;
 
         long completedTrips = tripRepository.countByOrderDriverAndStatus(driver, TripStatus.COMPLETED);
 
@@ -217,12 +226,15 @@ public class TripServiceImpl implements TripService {
                 .mapToInt(Trip::getRating)
                 .average()
                 .orElse(0.0);
+        // 保留2位小数
+        averageRating = Math.round(averageRating * 100.0) / 100.0;
 
         // 计算总收入
         double totalEarnings = completedTripsList.stream()
                 .filter(trip -> trip.getActualFare() != null)
                 .mapToDouble(Trip::getActualFare)
                 .sum();
+        totalEarnings = Math.round(totalEarnings * 100.0) / 100.0;
 
         return new DriverTripStats(completedTrips, averageRating, totalEarnings);
     }

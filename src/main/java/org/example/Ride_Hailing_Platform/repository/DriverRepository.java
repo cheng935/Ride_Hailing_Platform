@@ -14,6 +14,9 @@ public interface DriverRepository extends JpaRepository<Driver, Long> {
     //查询所有在线可接单司机
     List<Driver> findByIsOnlineTrue();
 
+    //
+    Optional<Driver> findByUserId(Long userId);
+
     //查询第一个在线可接单司机
     Optional<Driver> findFirstByIsOnlineTrue();
 

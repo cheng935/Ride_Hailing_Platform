@@ -17,7 +17,7 @@ public class Trip {
     private Long tripId;
 
     @OneToOne
-    @JoinColumn(name = "order_id")
+    @JoinColumn(name = "order_id", unique = true)
     private Order order;
 
     @Embedded
@@ -65,6 +65,7 @@ public class Trip {
     public void startTrip() {
         this.status = TripStatus.IN_PROGRESS;
         this.startTime = LocalDateTime.now();
+        this.updateTime = LocalDateTime.now();
     }
 
     public void completeTrip(Double actualDistance, Double actualFare, Integer rating, String feedback) {
@@ -74,6 +75,7 @@ public class Trip {
         this.actualFare = actualFare;
         this.rating = rating;
         this.feedback = feedback;
+        this.updateTime = LocalDateTime.now();
     }
 
     // 可选：在设置位置时自动更新时间

@@ -92,4 +92,12 @@ public interface OrderService {
      * @return 预估价格: boolean
      */
     Double calculateEstimatedFare(double distance, OrderType type, Boolean isCongestion);
+
+    /**
+     * 获取乘客的所有订单
+     * @param passengerId
+     * @return  乘客订单列表
+     */
+    List<Order> getOrdersByPassengerId(Long passengerId);
+
 }
