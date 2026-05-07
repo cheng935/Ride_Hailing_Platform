@@ -1,6 +1,7 @@
 // src/main/java/org/example/Ride_Hailing_Platform/model/order/Order.java
 package org.example.Ride_Hailing_Platform.model.order;
 
+import org.example.Ride_Hailing_Platform.model.payment.PaymentStatus;
 import org.example.Ride_Hailing_Platform.model.user.Driver;
 import org.example.Ride_Hailing_Platform.model.user.User;
 import jakarta.persistence.*;
@@ -49,8 +50,17 @@ public class Order {
     private LocalDateTime cancelTime;
     private String CancelReason;
 
+    // 支付相关
+    @Enumerated(EnumType.STRING)
+    private PaymentStatus paymentStatus = PaymentStatus.UNPAID;
+    private LocalDateTime paymentTime;
+
     // 业务方法
     public boolean canBeCancelled() {
         return status == OrderStatus.PENDING || status == OrderStatus.ACCEPTED;
+    }
+
+    public boolean isPaid() {
+        return paymentStatus == PaymentStatus.PAID;
     }
 }
