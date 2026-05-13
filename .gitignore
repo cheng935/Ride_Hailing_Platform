@@ -31,3 +31,26 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### OS generated files ###
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+### Logs ###
+*.log
+logs/
+
+### Sensitive config (contains DB password, JWT secret) ###
+src/main/resources/application.properties
+init-database.bat
+
+### Environment ###
+.env
+.env.local
+.env.*.local

@@ -12,7 +12,6 @@ import org.example.Ride_Hailing_Platform.repository.TripRepository;
 import org.example.Ride_Hailing_Platform.repository.UserRepository;
 import org.example.Ride_Hailing_Platform.service.OrderService;
 import lombok.RequiredArgsConstructor;
-import org.example.Ride_Hailing_Platform.service.PassengerService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;

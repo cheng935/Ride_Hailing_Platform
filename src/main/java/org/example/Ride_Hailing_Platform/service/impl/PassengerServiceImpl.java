@@ -7,24 +7,20 @@ import org.example.Ride_Hailing_Platform.model.user.UserRole;
 import org.example.Ride_Hailing_Platform.repository.PassengerRepository;
 import org.example.Ride_Hailing_Platform.service.PassengerService;
 import org.example.Ride_Hailing_Platform.service.UserService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
 public class PassengerServiceImpl implements PassengerService {
-    @Autowired
-    UserService userService;
 
-    @Autowired
-    PassengerRepository passengerRepository;
+    private final UserService userService;
+    private final PassengerRepository passengerRepository;
 
     @Override
     public Passenger createPassenger(String name, String phone, String password, String emergencyContact) {
         User user = userService.createUser(name, phone, password, UserRole.PASSENGER);
 
-        Passenger passenger = new Passenger();
-        passenger.setUserId(user.getUserId());
+        Passenger passenger = (Passenger) user;
         passenger.setEmergencyContact(emergencyContact);
 
         return passengerRepository.save(passenger);

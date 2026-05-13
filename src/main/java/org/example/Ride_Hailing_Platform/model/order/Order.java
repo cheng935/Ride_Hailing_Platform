@@ -19,15 +19,19 @@ public class Order {
     private Long orderId;
 
     @ManyToOne
-    @JoinColumn(name = "passenger_id")
+    @JoinColumn(name = "passenger_id", referencedColumnName = "userId")
     private User passenger;
 
     @ManyToOne
-    @JoinColumn(name = "driver_id")
+    @JoinColumn(name = "driver_id", referencedColumnName = "userId")
     private Driver driver;
 
     private String pickupLocation;
     private String destination;
+    private Double pickupLat;
+    private Double pickupLng;
+    private Double destLat;
+    private Double destLng;
     private Double distance; // 公里
     private Double estimatedFare; // 预估费用
     private Double actualFare;

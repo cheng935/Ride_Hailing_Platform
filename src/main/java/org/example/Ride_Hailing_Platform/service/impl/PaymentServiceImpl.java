@@ -1,5 +1,6 @@
 package org.example.Ride_Hailing_Platform.service.impl;
 
+import lombok.RequiredArgsConstructor;
 import org.example.Ride_Hailing_Platform.dto.PaymentRequest;
 import org.example.Ride_Hailing_Platform.dto.PaymentResponse;
 import org.example.Ride_Hailing_Platform.model.order.Order;
@@ -9,7 +10,6 @@ import org.example.Ride_Hailing_Platform.model.payment.PaymentStatus;
 import org.example.Ride_Hailing_Platform.repository.OrderRepository;
 import org.example.Ride_Hailing_Platform.repository.PaymentRepository;
 import org.example.Ride_Hailing_Platform.service.PaymentService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,13 +17,11 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class PaymentServiceImpl implements PaymentService {
 
-    @Autowired
-    private PaymentRepository paymentRepository;
-
-    @Autowired
-    private OrderRepository orderRepository;
+    private final PaymentRepository paymentRepository;
+    private final OrderRepository orderRepository;
 
     @Override
     @Transactional
@@ -49,6 +47,9 @@ public class PaymentServiceImpl implements PaymentService {
         payment.setTransactionId(UUID.randomUUID().toString());
 
         payment = paymentRepository.save(payment);
+
+        order.setPaymentStatus(PaymentStatus.PENDING);
+        orderRepository.save(order);
 
         return new PaymentResponse(
                 payment.getPaymentId(),

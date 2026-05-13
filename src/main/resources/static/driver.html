@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>司机端 - 打车平台</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; height: 100vh; overflow: hidden; }
+        #map { width: 100%; height: 100%; z-index: 1; }
+
+        .top-bar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+            background: white; padding: 12px 20px;
+            display: flex; align-items: center; justify-content: space-between;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .top-bar .title { font-size: 18px; font-weight: 700; color: #333; }
+        .top-bar .user-info { font-size: 14px; color: #666; }
+        .top-bar .logout-btn {
+            background: #f0f0f0; border: none; padding: 8px 16px;
+            border-radius: 8px; cursor: pointer; font-size: 13px; color: #666;
+        }
+        .top-bar .logout-btn:hover { background: #e0e0e0; }
+
+        .online-toggle {
+            position: fixed; top: 70px; right: 20px; z-index: 1000;
+            padding: 10px 20px; border-radius: 25px; font-size: 14px; font-weight: 700;
+            cursor: pointer; border: none; transition: all 0.3s;
+        }
+        .online-toggle.online { background: #27ae60; color: white; }
+        .online-toggle.offline { background: #e74c3c; color: white; }
+
+        .bottom-panel {
+            position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000;
+            background: white; border-radius: 20px 20px 0 0;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+            padding: 20px; max-height: 55vh; overflow-y: auto;
+        }
+
+        .panel-title {
+            font-size: 16px; font-weight: 700; color: #333; margin-bottom: 12px;
+        }
+
+        .order-card {
+            background: #f8f9ff; border: 2px solid #e8e8ff; border-radius: 12px;
+            padding: 14px; margin-bottom: 10px; cursor: pointer; transition: all 0.2s;
+        }
+        .order-card:hover { border-color: #667eea; transform: translateY(-1px); }
+        .order-card .order-route { font-size: 14px; color: #333; margin-bottom: 6px; }
+        .order-card .order-meta { font-size: 12px; color: #999; }
+        .order-card .order-fare { font-size: 16px; font-weight: 700; color: #e74c3c; float: right; }
+
+        .btn {
+            width: 100%; padding: 14px; border: none; border-radius: 12px;
+            font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s; margin-top: 8px;
+        }
+        .btn-accept {
+            background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%); color: white;
+        }
+        .btn-accept:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(39,174,96,0.4); }
+        .btn-arrive {
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%); color: white;
+        }
+        .btn-arrive:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(243,156,18,0.4); }
+        .btn-start {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); color: white;
+        }
+        .btn-start:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(52,152,219,0.4); }
+        .btn-complete {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: white;
+        }
+        .btn-complete:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(231,76,60,0.4); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        .status-badge {
+            display: inline-block; padding: 4px 10px; border-radius: 12px;
+            font-size: 12px; font-weight: 600;
+        }
+        .status-badge.pending { background: #fff3cd; color: #856404; }
+        .status-badge.accepted { background: #d4edda; color: #155724; }
+        .status-badge.picking_up { background: #fff3cd; color: #856404; }
+        .status-badge.in_progress { background: #cce5ff; color: #004085; }
+        .status-badge.completed { background: #d4edda; color: #155724; }
+
+        .toast {
+            position: fixed; top: 80px; left: 50%; transform: translateX(-50%);
+            z-index: 2000; padding: 12px 24px; border-radius: 10px;
+            font-size: 14px; font-weight: 600; animation: slideDown 0.3s ease;
+            display: none;
+        }
+        .toast.success { background: #27ae60; color: white; }
+        .toast.error { background: #e74c3c; color: white; }
+        .toast.info { background: #667eea; color: white; }
+        @keyframes slideDown { from { transform: translateX(-50%) translateY(-20px); opacity: 0; } to { transform: translateX(-50%) translateY(0); opacity: 1; } }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <span class="title">🚗 打车平台 - 司机端</span>
+        <span class="user-info" id="userInfo"></span>
+        <button class="logout-btn" onclick="logout()">退出</button>
+    </div>
+
+    <button class="online-toggle offline" id="onlineBtn" onclick="toggleOnline()">🔴 离线</button>
+
+    <div id="map"></div>
+
+    <div class="toast" id="toast"></div>
+
+    <div class="bottom-panel" id="bottomPanel">
+        <div id="pendingPanel">
+            <div class="panel-title">📋 待接订单</div>
+            <div id="pendingOrders"><p style="color:#999;text-align:center;padding:20px;">暂无待接订单</p></div>
+        </div>
+
+        <div id="activePanel" class="hidden">
+            <div class="panel-title">📋 当前订单</div>
+            <div id="activeOrderInfo" style="margin-bottom:12px;"></div>
+            <div id="actionButtons"></div>
+        </div>
+    </div>
+
+    <script src="https://webapi.amap.com/maps?v=1.4.15&key=206fcbe9f1b9956146cdd0bb0af8a593&plugin=AMap.Geocoder,AMap.AutoComplete,AMap.Driving"></script>
+    <script>
+        const API = '/api/ride';
+        const TOKEN = localStorage.getItem('token');
+        const USER = JSON.parse(localStorage.getItem('user') || '{}');
+
+        if (!TOKEN) { window.location.href = '/'; }
+
+        document.getElementById('userInfo').textContent = USER.name || '司机';
+
+        const map = new AMap.Map('map', {
+            zoom: 13,
+            center: [120.68, 27.92],
+            viewMode: '2D'
+        });
+
+        let pickupMarker = null;
+        let destMarker = null;
+        let carMarker = null;
+        let routeLine = null;
+        let isOnline = false;
+        let currentOrderId = null;
+        let pollTimer = null;
+        let animTimer = null;
+        let animStarted = false;
+
+        function createMarkerContent(color) {
+            return '<div style="background:' + color + ';color:white;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);">📍</div>';
+        }
+
+        async function toggleOnline() {
+            const url = isOnline ? API + '/driver/offline' : API + '/driver/online';
+            try {
+                const resp = await fetch(url, {
+                    method: 'PUT',
+                    headers: { 'Authorization': 'Bearer ' + TOKEN }
+                });
+                const data = await resp.json();
+                if (data.code === 200) {
+                    isOnline = !isOnline;
+                    updateOnlineUI();
+                    showToast(data.message, 'success');
+                    if (isOnline) startPolling();
+                    else stopPolling();
+                } else {
+                    showToast(data.message || '操作失败', 'error');
+                }
+            } catch (e) {
+                showToast('网络错误', 'error');
+            }
+        }
+
+        function updateOnlineUI() {
+            const btn = document.getElementById('onlineBtn');
+            if (isOnline) {
+                btn.textContent = '🟢 在线';
+                btn.className = 'online-toggle online';
+            } else {
+                btn.textContent = '🔴 离线';
+                btn.className = 'online-toggle offline';
+                document.getElementById('pendingPanel').classList.remove('hidden');
+                document.getElementById('activePanel').classList.add('hidden');
+                clearMapMarkers();
+            }
+        }
+
+        function startPolling() {
+            if (pollTimer) clearInterval(pollTimer);
+            pollTimer = setInterval(pollOrders, 2000);
+        }
+
+        function stopPolling() {
+            if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+            if (animTimer) { clearInterval(animTimer); animTimer = null; }
+            animStarted = false;
+        }
+
+        async function pollOrders() {
+            if (!isOnline) return;
+            try {
+                const resp = await fetch(API + '/orders/pending', {
+                    headers: { 'Authorization': 'Bearer ' + TOKEN }
+                });
+                const data = await resp.json();
+                if (data.code === 200) {
+                    renderPendingOrders(data.data);
+                }
+            } catch (e) { /* ignore */ }
+
+            if (currentOrderId) {
+                try {
+                    const resp = await fetch(API + '/order/' + currentOrderId, {
+                        headers: { 'Authorization': 'Bearer ' + TOKEN }
+                    });
+                    const data = await resp.json();
+                    if (data.code === 200) {
+                        updateActiveOrderUI(data.data);
+                    }
+                } catch (e) { /* ignore */ }
+            }
+        }
+
+        function renderPendingOrders(orders) {
+            const container = document.getElementById('pendingOrders');
+            if (!orders || orders.length === 0) {
+                container.innerHTML = '<p style="color:#999;text-align:center;padding:20px;">暂无待接订单</p>';
+                return;
+            }
+            container.innerHTML = orders.map(function(o) {
+                return '<div class="order-card" onclick="acceptOrder(' + o.orderId + ')">' +
+                    '<span class="order-fare">¥' + (o.estimatedFare || '--') + '</span>' +
+                    '<div class="order-route">📍 ' + (o.pickupName || '未知') + ' → 🏁 ' + (o.destName || '未知') + '</div>' +
+                    '<div class="order-meta">乘客：' + (o.passengerName || '未知') + ' | 距离：' + (o.distance || '--') + 'km | ' + (o.createTime || '') + '</div>' +
+                '</div>';
+            }).join('');
+        }
+
+        async function acceptOrder(orderId) {
+            try {
+                const resp = await fetch(API + '/order/' + orderId + '/accept', {
+                    method: 'PUT',
+                    headers: { 'Authorization': 'Bearer ' + TOKEN }
+                });
+                const data = await resp.json();
+                if (data.code === 200) {
+                    currentOrderId = orderId;
+                    document.getElementById('pendingPanel').classList.add('hidden');
+                    document.getElementById('activePanel').classList.remove('hidden');
+                    showToast('接单成功！', 'success');
+                    showOnMap(data.data);
+                    updateActiveOrderUI(Object.assign({}, data.data, { status: 'ACCEPTED' }));
+                } else {
+                    showToast(data.message || '接单失败', 'error');
+                }
+            } catch (e) {
+                showToast('网络错误', 'error');
+            }
+        }
+
+        function showOnMap(data) {
+            clearMapMarkers();
+            if (data.pickupLat && data.pickupLng) {
+                pickupMarker = new AMap.Marker({
+                    position: [data.pickupLng, data.pickupLat],
+                    content: createMarkerContent('#27ae60'),
+                    anchor: 'center',
+                    title: '上车点：' + (data.pickupName || '')
+                });
+                map.add(pickupMarker);
+            }
+            if (data.destLat && data.destLng) {
+                destMarker = new AMap.Marker({
+                    position: [data.destLng, data.destLat],
+                    content: createMarkerContent('#e74c3c'),
+                    anchor: 'center',
+                    title: '目的地：' + (data.destName || '')
+                });
+                map.add(destMarker);
+            }
+            if (pickupMarker && destMarker) {
+                map.setFitView([pickupMarker, destMarker], false, [50, 50, 50, 50]);
+            } else if (pickupMarker) {
+                map.setZoomAndCenter(14, pickupMarker.getPosition());
+            }
+        }
+
+        function updateActiveOrderUI(data) {
+            const infoEl = document.getElementById('activeOrderInfo');
+            const btnEl = document.getElementById('actionButtons');
+            const status = data.status;
+
+            infoEl.innerHTML =
+                '<span class="status-badge ' + status.toLowerCase() + '">' + statusText(status) + '</span>' +
+                '<div style="margin-top:8px;font-size:14px;color:#333;">📍 ' + (data.pickupName || '--') + ' → 🏁 ' + (data.destName || '--') + '</div>' +
+                '<div style="font-size:13px;color:#666;margin-top:4px;">乘客：' + (data.passengerName || '--') + ' | 预估：¥' + (data.estimatedFare || '--') + '</div>';
+
+            var buttons = '';
+            if (status === 'ACCEPTED') {
+                buttons = '<button class="btn btn-arrive" onclick="driverAction(\'arrive\')">📍 到达上车点</button>';
+            } else if (status === 'PICKING_UP') {
+                buttons = '<button class="btn btn-start" onclick="driverAction(\'start\')">🚀 接到乘客，开始行程</button>';
+            } else if (status === 'IN_PROGRESS') {
+                buttons = '<button class="btn btn-complete" onclick="driverAction(\'complete\')">🏁 到达目的地</button>';
+            } else if (status === 'COMPLETED') {
+                buttons = '<p style="text-align:center;color:#27ae60;padding:10px;">✅ 行程已完成，等待乘客支付</p>' +
+                          '<button class="btn btn-accept" onclick="resetDriver()">🔄 继续接单</button>';
+            }
+            btnEl.innerHTML = buttons;
+
+            if (status === 'IN_PROGRESS' && data.pickupLat && data.destLat && !animStarted) {
+                animStarted = true;
+                animateCar(data.pickupLat, data.pickupLng, data.destLat, data.destLng);
+            }
+        }
+
+        async function driverAction(action) {
+            if (!currentOrderId) return;
+            try {
+                const resp = await fetch(API + '/order/' + currentOrderId + '/' + action, {
+                    method: 'PUT',
+                    headers: { 'Authorization': 'Bearer ' + TOKEN }
+                });
+                const data = await resp.json();
+                if (data.code === 200) {
+                    showToast(data.message || '操作成功', 'success');
+                } else {
+                    showToast(data.message || '操作失败', 'error');
+                }
+            } catch (e) {
+                showToast('网络错误', 'error');
+            }
+        }
+
+        function resetDriver() {
+            currentOrderId = null;
+            clearMapMarkers();
+            document.getElementById('pendingPanel').classList.remove('hidden');
+            document.getElementById('activePanel').classList.add('hidden');
+        }
+
+        function animateCar(fromLat, fromLng, toLat, toLng) {
+            if (animTimer) { clearInterval(animTimer); animTimer = null; }
+            if (carMarker) map.remove(carMarker);
+            if (routeLine) map.remove(routeLine);
+
+            var driving = new AMap.Driving({
+                policy: AMap.DrivingPolicy.LEAST_TIME
+            });
+
+            driving.search(
+                new AMap.LngLat(fromLng, fromLat),
+                new AMap.LngLat(toLng, toLat),
+                function(status, result) {
+                    if (status === 'complete' && result.routes && result.routes.length > 0) {
+                        var rawPath = [];
+                        var steps = result.routes[0].steps;
+                        for (var i = 0; i < steps.length; i++) {
+                            var stepPath = steps[i].path;
+                            for (var j = 0; j < stepPath.length; j++) {
+                                rawPath.push([stepPath[j].lng, stepPath[j].lat]);
+                            }
+                        }
+
+                        var sampleSize = 80;
+                        var path = [];
+                        if (rawPath.length <= sampleSize) {
+                            path = rawPath;
+                        } else {
+                            for (var k = 0; k < sampleSize; k++) {
+                                var idx = Math.floor(k * (rawPath.length - 1) / (sampleSize - 1));
+                                path.push(rawPath[idx]);
+                            }
+                        }
+
+                        routeLine = new AMap.Polyline({
+                            path: path,
+                            strokeColor: '#667eea',
+                            strokeWeight: 6,
+                            strokeOpacity: 0.8
+                        });
+                        map.add(routeLine);
+
+                        carMarker = new AMap.Marker({
+                            position: path[0],
+                            content: '<div style="background:#667eea;color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;border:3px solid white;box-shadow:0 4px 12px rgba(0,0,0,0.3);">🚗</div>',
+                            anchor: 'center'
+                        });
+                        map.add(carMarker);
+
+                        map.setFitView(routeLine);
+
+                        var step = 0;
+                        animTimer = setInterval(function() {
+                            step++;
+                            if (step >= path.length || !carMarker) {
+                                clearInterval(animTimer);
+                                animTimer = null;
+                                return;
+                            }
+                            carMarker.setPosition(path[step]);
+                        }, 100);
+                    } else {
+                        routeLine = new AMap.Polyline({
+                            path: [[fromLng, fromLat], [toLng, toLat]],
+                            strokeColor: '#667eea',
+                            strokeWeight: 4,
+                            strokeDasharray: [10, 10],
+                            strokeOpacity: 0.7
+                        });
+                        map.add(routeLine);
+
+                        carMarker = new AMap.Marker({
+                            position: [fromLng, fromLat],
+                            content: '<div style="background:#667eea;color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;border:3px solid white;box-shadow:0 4px 12px rgba(0,0,0,0.3);">🚗</div>',
+                            anchor: 'center'
+                        });
+                        map.add(carMarker);
+
+                        map.setFitView([carMarker, new AMap.Marker({ position: [toLng, toLat] })], false, [60, 60, 60, 60]);
+
+                        var steps = 60;
+                        var s = 0;
+                        var interval = setInterval(function() {
+                            s++;
+                            var progress = s / steps;
+                            var lat = fromLat + (toLat - fromLat) * progress;
+                            var lng = fromLng + (toLng - fromLng) * progress;
+                            carMarker.setPosition([lng, lat]);
+                            if (s >= steps) clearInterval(interval);
+                        }, 100);
+                    }
+                }
+            );
+        }
+
+        function clearMapMarkers() {
+            if (animTimer) { clearInterval(animTimer); animTimer = null; }
+            animStarted = false;
+            if (pickupMarker) { map.remove(pickupMarker); pickupMarker = null; }
+            if (destMarker) { map.remove(destMarker); destMarker = null; }
+            if (carMarker) { map.remove(carMarker); carMarker = null; }
+            if (routeLine) { map.remove(routeLine); routeLine = null; }
+        }
+
+        function statusText(s) {
+            var m = { PENDING: '待接单', ACCEPTED: '已接单', PICKING_UP: '等待上车', IN_PROGRESS: '行程中', COMPLETED: '已完成', CANCELLED: '已取消' };
+            return m[s] || s;
+        }
+
+        function showToast(msg, type) {
+            var toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.className = 'toast ' + type;
+            toast.style.display = 'block';
+            setTimeout(function() { toast.style.display = 'none'; }, 3000);
+        }
+
+        function logout() {
+            localStorage.clear();
+            window.location.href = '/';
+        }
+    </script>
+</body>
+</html>

@@ -49,22 +49,4 @@ public class PaymentController {
         }
         return ApiResponse.success(payment);
     }
-
-    @Operation(summary = "模拟支付页面 - 已付款")
-    @GetMapping("/success-page/{orderId}")
-    public ApiResponse<PaymentResponse> getPaymentSuccessPage(@PathVariable Long orderId) {
-        Payment payment = paymentService.getPaymentByOrderId(orderId);
-        if (payment == null) {
-            return ApiResponse.error("未找到支付信息");
-        }
-        PaymentResponse response = new PaymentResponse(
-                payment.getPaymentId(),
-                orderId,
-                payment.getAmount(),
-                payment.getStatus().name(),
-                payment.getPaymentMethod(),
-                "已付款！乘车金额：" + payment.getAmount() + " 元"
-        );
-        return ApiResponse.success(response);
-    }
 }
