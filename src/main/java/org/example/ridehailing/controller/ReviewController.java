@@ -37,7 +37,7 @@ public class ReviewController {
         List<Review> reviews = reviewService.getReviewsByReviewer(reviewerId);
         return ApiResponse.success(reviews.stream().map(this::toMap).collect(Collectors.toList()));
     }
-
+    
     @GetMapping("/reviewed/{reviewedId}")
     @Operation(summary = "查询收到的评价", description = "查询某用户收到的所有评价")
     public ApiResponse<List<Map<String, Object>>> getReviewsByReviewed(@PathVariable Long reviewedId) {
