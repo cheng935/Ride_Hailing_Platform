@@ -3,6 +3,7 @@ package org.example.ridehailing.service.pubsub;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.ridehailing.service.cache.DriverOnlineCacheService;
 import org.example.ridehailing.websocket.RideWebSocketHandler;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.listener.ChannelTopic;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
 import java.util.Map;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -23,6 +25,7 @@ public class RedisPubSubService {
     private final StringRedisTemplate redisTemplate;
     private final RedisMessageListenerContainer listenerContainer;
     private final RideWebSocketHandler webSocketHandler;
+    private final DriverOnlineCacheService driverOnlineCacheService;
     private final ObjectMapper objectMapper;
 
     @PostConstruct
@@ -108,7 +111,7 @@ public class RedisPubSubService {
             }
 
             if ("CREATED".equals(event)) {
-                webSocketHandler.broadcastToDrivers(json);
+                broadcastToOnlineDrivers(json, passengerId, driverId);
             }
         } catch (Exception e) {
             log.error("Failed to handle order message: {}", e.getMessage());
@@ -118,9 +121,24 @@ public class RedisPubSubService {
     private void handleDriverMessage(Map<String, Object> msg) {
         try {
             String json = objectMapper.writeValueAsString(msg);
-            webSocketHandler.broadcastToDrivers(json);
+            Long driverId = msg.get("driverId") != null ? ((Number) msg.get("driverId")).longValue() : null;
+            broadcastToOnlineDrivers(json, null, driverId);
         } catch (Exception e) {
             log.error("Failed to handle driver message: {}", e.getMessage());
+        }
+    }
+
+    private void broadcastToOnlineDrivers(String json, Long excludeUserId, Long excludeDriverId) {
+        Set<String> onlineDriverIds = driverOnlineCacheService.getOnlineDriverIds();
+        for (String driverIdStr : onlineDriverIds) {
+            try {
+                Long driverId = Long.parseLong(driverIdStr);
+                if (driverId.equals(excludeUserId) || driverId.equals(excludeDriverId)) {
+                    continue;
+                }
+                webSocketHandler.sendToUser(driverId, json);
+            } catch (NumberFormatException ignored) {
+            }
         }
     }
 }

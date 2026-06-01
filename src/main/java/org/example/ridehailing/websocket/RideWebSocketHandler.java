@@ -18,12 +18,14 @@ public class RideWebSocketHandler extends TextWebSocketHandler {
 
     private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
     private final Map<Long, Set<String>> userSessions = new ConcurrentHashMap<>();
+    private final Map<String, Long> sessionToUser = new ConcurrentHashMap<>();
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         Long userId = extractUserId(session);
         if (userId != null) {
             sessions.put(session.getId(), session);
+            sessionToUser.put(session.getId(), userId);
             userSessions.computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet()).add(session.getId());
             log.info("WebSocket connected: userId={}, sessionId={}", userId, session.getId());
         }
@@ -31,7 +33,7 @@ public class RideWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
-        Long userId = extractUserId(session);
+        Long userId = sessionToUser.remove(session.getId());
         sessions.remove(session.getId());
         if (userId != null) {
             Set<String> userSessionIds = userSessions.get(userId);
@@ -76,8 +78,9 @@ public class RideWebSocketHandler extends TextWebSocketHandler {
     }
 
     public void broadcastToDrivers(String message) {
-        for (WebSocketSession session : sessions.values()) {
-            if (session.isOpen()) {
+        for (Map.Entry<String, WebSocketSession> entry : sessions.entrySet()) {
+            WebSocketSession session = entry.getValue();
+            if (session != null && session.isOpen()) {
                 try {
                     session.sendMessage(new TextMessage(message));
                 } catch (IOException e) {

@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.example.ridehailing.common.ApiResponse;
+import org.example.ridehailing.dto.CreateOrderRequest;
 import org.example.ridehailing.dto.OrderDetailDTO;
 import org.example.ridehailing.dto.PricingResponse;
 import org.example.ridehailing.model.order.Order;
@@ -28,19 +29,17 @@ public class OrderController {
     @Operation(summary = "乘客下单", description = "创建打车订单")
     public ApiResponse<Map<String, Object>> createOrder(
             @RequestHeader("Authorization") String auth,
-            @RequestParam String pickupName,
-            @RequestParam Double pickupLat,
-            @RequestParam Double pickupLng,
-            @RequestParam String destName,
-            @RequestParam Double destLat,
-            @RequestParam Double destLng) {
+            @RequestBody CreateOrderRequest request) {
 
         Long userId = extractUserId(auth);
-        Order order = orderService.createOrder(userId, pickupName, pickupLat, pickupLng,
-                destName, destLat, destLng);
+        Order order = orderService.createOrder(userId,
+                request.getPickupName(), request.getPickupLat(), request.getPickupLng(),
+                request.getDestName(), request.getDestLat(), request.getDestLng());
 
-        PricingResponse pricing = orderService.estimatePrice(pickupLat, pickupLng,
-                destLat, destLng, pickupName, destName);
+        PricingResponse pricing = orderService.estimatePrice(
+                request.getPickupLat(), request.getPickupLng(),
+                request.getDestLat(), request.getDestLng(),
+                request.getPickupName(), request.getDestName());
 
         Map<String, Object> result = new HashMap<>();
         result.put("orderId", order.getOrderId());

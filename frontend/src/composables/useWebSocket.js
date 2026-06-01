@@ -8,6 +8,8 @@ let reconnectTimer = null
 let reconnectAttempts = 0
 const MAX_RECONNECT_ATTEMPTS = 10
 
+let currentUserId = null
+
 function getWsUrl() {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const host = window.location.host.replace(':5173', ':8080')
@@ -18,20 +20,25 @@ export function useWebSocket() {
   const authStore = useAuthStore()
 
   function connect() {
-    if (ws.value && (ws.value.readyState === WebSocket.OPEN || ws.value.readyState === WebSocket.CONNECTING)) {
-      return
-    }
-
     const userId = authStore.userId
     if (!userId) return
 
+    if (ws.value && (ws.value.readyState === WebSocket.OPEN || ws.value.readyState === WebSocket.CONNECTING)) {
+      if (currentUserId === userId) {
+        return
+      }
+      ws.value.close()
+      ws.value = null
+    }
+
+    currentUserId = userId
     const url = getWsUrl() + `?userId=${userId}`
     ws.value = new WebSocket(url)
 
     ws.value.onopen = () => {
       connected.value = true
       reconnectAttempts = 0
-      console.log('[WS] Connected')
+      console.log('[WS] Connected as userId=' + userId)
     }
 
     ws.value.onmessage = (event) => {
@@ -46,7 +53,9 @@ export function useWebSocket() {
     ws.value.onclose = () => {
       connected.value = false
       console.log('[WS] Disconnected')
-      scheduleReconnect()
+      if (currentUserId === userId) {
+        scheduleReconnect()
+      }
     }
 
     ws.value.onerror = (err) => {
@@ -61,6 +70,7 @@ export function useWebSocket() {
       reconnectTimer = null
     }
     reconnectAttempts = MAX_RECONNECT_ATTEMPTS
+    currentUserId = null
     if (ws.value) {
       ws.value.close()
       ws.value = null

@@ -13,12 +13,10 @@ export const useOrderStore = defineStore('order', () => {
   async function createOrder(pickupName, pickupLat, pickupLng, destName, destLat, destLng) {
     const auth = useAuthStore()
     try {
-      const params = new URLSearchParams({
-        pickupName, pickupLat, pickupLng, destName, destLat, destLng
-      })
-      const resp = await fetch('/api/ride/order?' + params, {
+      const resp = await fetch('/api/ride/order', {
         method: 'POST',
-        headers: auth.authHeaders
+        headers: auth.authHeaders,
+        body: JSON.stringify({ pickupName, pickupLat, pickupLng, destName, destLat, destLng })
       })
       const data = await resp.json()
       if (data.code === 200) {
